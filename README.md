@@ -240,17 +240,17 @@ De esta forma se puede probar el funcionamiento del sistema sin usar datos reale
 
 ---
 
+
 ## 🖼️ Imágenes de muestra del análisis de datos Spot
 
-A continuación se muestran algunas capturas generadas por el proyecto utilizando datos ficticios de ejemplo.
-
+A continuación se muestran algunas capturas generadas por el proyecto utilizando datos ficticios de ejemplo.  
 El objetivo es visualizar cómo el sistema procesa un historial Spot, calcula métricas de rendimiento y genera gráficos automáticos con Matplotlib.
 
 ### 📊 PnL total por moneda
 
 Este gráfico muestra la ganancia o pérdida total realizada por cada activo operado.
 
-![PnL total por moneda](01_pnl_total_por_moneda.png)
+![PnL total por moneda](reporte_trading/01_pnl_total_por_moneda.png)
 
 ---
 
@@ -258,7 +258,7 @@ Este gráfico muestra la ganancia o pérdida total realizada por cada activo ope
 
 Este gráfico muestra el rendimiento porcentual total por moneda.
 
-![ROI total por moneda](02_roi_total_por_moneda.png)
+![ROI total por moneda](reporte_trading/02_roi_total_por_moneda.png)
 
 ---
 
@@ -267,8 +267,6 @@ Este gráfico muestra el rendimiento porcentual total por moneda.
 El programa genera automáticamente un archivo Excel con distintas hojas, incluyendo resumen por moneda, trades cerrados, posiciones abiertas y datos limpios.
 
 ![Reporte Excel final](excel_reporte.png)
-
----
 
 ## 🛠️ Tecnologías utilizadas
 
