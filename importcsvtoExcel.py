@@ -690,20 +690,28 @@ def exportar_excel(df_limpio, trades_df, abiertas_df, resumen_df, carpeta_salida
         ]    
 
         trades_excel = trades_excel[columnas_existentes]
+                
+        for columna_fecha in ["Fecha compra inicial", "Fecha venta"]:
+            if columna_fecha in trades_excel.columns:
+                    trades_excel[columna_fecha] = pd.to_datetime(
+                        trades_excel[columna_fecha],
+                        errors="coerce"
+                    ).dt.strftime("%d/%m/%y")
+            
 
-    # Ordenar posiciones abiertas
+            # Ordenar posiciones abiertas
     if not abiertas_excel.empty:
         abiertas_excel = abiertas_excel.sort_values(
-            ["Moneda", "Fecha compra"],
-            ascending=[True, True]
-        ).reset_index(drop=True)
+                    ["Moneda", "Fecha compra"],
+                    ascending=[True, True]
+                ).reset_index(drop=True)
 
-    # Ordenar datos limpios
+            # Ordenar datos limpios
     if not df_limpio_excel.empty:
-        df_limpio_excel = df_limpio_excel.sort_values(
-            ["Moneda", "Fecha"],
-            ascending=[True, True]
-        ).reset_index(drop=True)
+         df_limpio_excel = df_limpio_excel.sort_values(
+                    ["Moneda", "Fecha"],
+                    ascending=[True, True]
+                ).reset_index(drop=True)
 
     with pd.ExcelWriter(archivo_excel, engine="openpyxl") as writer:
         resumen_excel.to_excel(writer, sheet_name="Resumen por moneda", index=False)
@@ -714,7 +722,7 @@ def exportar_excel(df_limpio, trades_df, abiertas_df, resumen_df, carpeta_salida
         workbook = writer.book
 
        
-        formato_fecha = "yyyy-mm-dd hh:mm:ss"
+        formato_fecha = "dd/mm/yy"
 
         for sheet_name in workbook.sheetnames:
             ws = workbook[sheet_name]
