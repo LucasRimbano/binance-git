@@ -705,6 +705,13 @@ def exportar_excel(df_limpio, trades_df, abiertas_df, resumen_df, carpeta_salida
                     ["Moneda", "Fecha compra"],
                     ascending=[True, True]
                 ).reset_index(drop=True)
+        
+        if "Fecha compra" in abiertas_excel.columns:
+            abiertas_excel["Fecha compra"] = pd.to_datetime(
+                abiertas_excel["Fecha compra"],
+                errors="coerce"
+            ).dt.strftime("%d/%m/%y")
+
 
             # Ordenar datos limpios
     if not df_limpio_excel.empty:
