@@ -7,17 +7,17 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 
 
-# CONFIGURACIÓN
+
 
 
 ARCHIVO = "spot.csv"                # Puede ser .csv, .xlsx o .xls
-METODO = "FIFO"                     # Puede ser "FIFO" o "LIFO"
-MONEDA_COTIZACION = "USDT"          # Para analizar pares contra USDT
+METODO = "FIFO"                    
+MONEDA_COTIZACION = "USDT"         
 CARPETA_SALIDA = "reporte_trading"
-MOSTRAR_GRAFICOS = True             # Cambiar a False si no querés que se abran ventanas
+MOSTRAR_GRAFICOS = False            
 
 
-# LECTURA DE ARCHIVOS
+
 
 
 def leer_archivo(ruta):
@@ -42,9 +42,9 @@ def leer_archivo(ruta):
     raise ValueError("Formato no soportado. Usá CSV o Excel.")
 
 
-# =====================================================
+
 # FUNCIONES AUXILIARES GENÉRICAS
-# =====================================================
+
 
 def limpiar_numero(valor):
     if pd.isna(valor):
@@ -128,9 +128,6 @@ def buscar_columna(df, posibles_nombres):
     )
 
 
-# =====================================================
-# PREPARACIÓN DE DATOS
-# =====================================================
 
 def preparar_datos(df):
     df = df.copy()
@@ -248,9 +245,9 @@ def preparar_datos(df):
     return df
 
 
-# =====================================================
+
 # CÁLCULO DE PNL CON FIFO / LIFO
-# =====================================================
+
 
 def calcular_pnl(df, metodo="FIFO"):
     metodo = metodo.upper()
@@ -311,7 +308,9 @@ def calcular_pnl(df, metodo="FIFO"):
                         "Moneda": moneda,
                         "Fecha compra inicial": min(fechas_compra),
                         "Fecha venta": row["Fecha"],
+                        "Precio compra promedio": costo_total / cantidad_matcheada if cantidad_matcheada > 0 else 0,
                         "Cantidad vendida": cantidad_matcheada,
+                        "Precio compra": costo_total / cantidad_matcheada if cantidad_matcheada > 0 else 0,
                         "Precio venta": precio_venta,
                         f"Costo {MONEDA_COTIZACION}": costo_total,
                         f"Venta {MONEDA_COTIZACION}": ingreso_total,
@@ -335,9 +334,9 @@ def calcular_pnl(df, metodo="FIFO"):
     return trades_df, abiertas_df
 
 
-# =====================================================
+
 # RESUMEN POR MONEDA
-# =====================================================
+
 
 def crear_resumen(trades_df, abiertas_df):
     if trades_df.empty:
@@ -349,12 +348,19 @@ def crear_resumen(trades_df, abiertas_df):
 
     resumen = trades_df.groupby("Moneda").agg(
         trades_cerrados=("Moneda", "count"),
+
+        trades_ganados=(col_pnl, lambda x: (x > 0).sum()),
+        trades_perdidos=(col_pnl, lambda x: (x < 0).sum()),
+        trades_empate=(col_pnl, lambda x: (x == 0).sum()),
+
         total_invertido=(col_costo, "sum"),
         total_vendido=(col_venta, "sum"),
         pnl_total=(col_pnl, "sum"),
+
+        trade_mas_ganador=(col_pnl, "max"),
+        trade_mas_perdedor=(col_pnl, "min"),
+
         roi_promedio=("ROI %", "mean"),
-        mejor_trade=(col_pnl, "max"),
-        peor_trade=(col_pnl, "min"),
         winrate=(col_pnl, lambda x: (x > 0).mean() * 100)
     ).reset_index()
 
@@ -376,12 +382,31 @@ def crear_resumen(trades_df, abiertas_df):
     resumen["cantidad_abierta"] = resumen["cantidad_abierta"].fillna(0)
     resumen["costo_abierto"] = resumen["costo_abierto"].fillna(0)
 
+    columnas_resumen = [
+        "Moneda",
+        "trades_cerrados",
+        "trades_ganados",
+        "trades_perdidos",
+        "trades_empate",
+        "total_invertido",
+        "total_vendido",
+        "pnl_total",
+        "trade_mas_ganador",
+        "trade_mas_perdedor",
+        "roi_total",
+        "roi_promedio",
+        "winrate",
+        "cantidad_abierta",
+        "costo_abierto"
+    ]
+     
+    resumen = resumen[columnas_resumen] 
+
     return resumen.sort_values("pnl_total", ascending=False)
 
 
-# =====================================================
-# GRÁFICOS
-# =====================================================
+
+
 
 def guardar_y_mostrar(nombre_archivo):
     plt.tight_layout()
@@ -402,6 +427,10 @@ def crear_graficos(trades_df, resumen_df, carpeta_salida):
         return
 
     col_pnl = f"PnL {MONEDA_COTIZACION}"
+
+
+    # 1) PnL total por moneda
+
 
     resumen_ordenado = resumen_df.sort_values("pnl_total")
 
@@ -424,6 +453,10 @@ def crear_graficos(trades_df, resumen_df, carpeta_salida):
 
     guardar_y_mostrar(carpeta / "01_pnl_total_por_moneda.png")
 
+
+    # 2) ROI total por moneda
+  
+
     resumen_roi = resumen_df.sort_values("roi_total")
 
     plt.figure(figsize=(12, 6))
@@ -444,6 +477,10 @@ def crear_graficos(trades_df, resumen_df, carpeta_salida):
         )
 
     guardar_y_mostrar(carpeta / "02_roi_total_por_moneda.png")
+
+   
+    # 3) Cantidad de trades por moneda
+   
 
     trades_por_moneda = trades_df.groupby("Moneda").size().reset_index(name="Cantidad")
 
@@ -466,6 +503,10 @@ def crear_graficos(trades_df, resumen_df, carpeta_salida):
 
     guardar_y_mostrar(carpeta / "03_cantidad_trades_por_moneda.png")
 
+   
+    # 4) PnL acumulado general
+  
+
     trades_ordenados = trades_df.sort_values("Fecha venta").copy()
     trades_ordenados["PnL acumulado"] = trades_ordenados[col_pnl].cumsum()
 
@@ -482,6 +523,10 @@ def crear_graficos(trades_df, resumen_df, carpeta_salida):
     plt.grid(True)
 
     guardar_y_mostrar(carpeta / "04_pnl_acumulado_general.png")
+
+  
+    # 5) ROI promedio por moneda
+  
 
     roi_promedio = trades_df.groupby("Moneda")["ROI %"].mean().reset_index()
     roi_promedio = roi_promedio.sort_values("ROI %")
@@ -505,21 +550,34 @@ def crear_graficos(trades_df, resumen_df, carpeta_salida):
 
     guardar_y_mostrar(carpeta / "05_roi_promedio_por_moneda.png")
 
+   
+    # GRÁFICOS INDIVIDUALES POR MONEDA
+  
+
     carpeta_monedas = carpeta / "graficos_por_moneda"
     carpeta_monedas.mkdir(exist_ok=True)
 
     for moneda, data_moneda in trades_df.groupby("Moneda"):
         data_moneda = data_moneda.sort_values("Fecha venta").copy()
         data_moneda["PnL acumulado"] = data_moneda[col_pnl].cumsum()
-        etiquetas = data_moneda["Fecha venta"].dt.strftime("%d/%m/%y")
 
-        plt.figure(figsize=(12, 6))
-        barras = plt.bar(etiquetas, data_moneda[col_pnl])
+        etiquetas = data_moneda["Fecha venta"].dt.strftime("%d/%m/%y %H:%M")
+
+        
+
+        x = range(len(data_moneda))
+
+        # 6) PnL por trade
+       
+
+        plt.figure(figsize=(16, 7))
+
+        barras = plt.bar(x, data_moneda[col_pnl])
 
         plt.title(f"{moneda} - Ganancia / pérdida por trade")
         plt.xlabel("Fecha de venta")
         plt.ylabel(f"PnL en {MONEDA_COTIZACION}")
-        plt.xticks(rotation=45)
+        plt.xticks(x, etiquetas, rotation=45, ha="right")
         plt.grid(True)
 
         for barra, pnl, roi in zip(barras, data_moneda[col_pnl], data_moneda["ROI %"]):
@@ -534,13 +592,18 @@ def crear_graficos(trades_df, resumen_df, carpeta_salida):
 
         guardar_y_mostrar(carpeta_monedas / f"{moneda}_01_pnl_por_trade.png")
 
-        plt.figure(figsize=(12, 6))
-        barras = plt.bar(etiquetas, data_moneda["ROI %"])
+      
+        # 7) ROI por trade
+        
+
+        plt.figure(figsize=(16, 7))
+
+        barras = plt.bar(x, data_moneda["ROI %"])
 
         plt.title(f"{moneda} - ROI por trade")
         plt.xlabel("Fecha de venta")
         plt.ylabel("ROI %")
-        plt.xticks(rotation=45)
+        plt.xticks(x, etiquetas, rotation=45, ha="right")
         plt.grid(True)
 
         for barra, valor in zip(barras, data_moneda["ROI %"]):
@@ -555,7 +618,12 @@ def crear_graficos(trades_df, resumen_df, carpeta_salida):
 
         guardar_y_mostrar(carpeta_monedas / f"{moneda}_02_roi_por_trade.png")
 
+       
+        # 8) PnL acumulado por moneda
+       
+
         plt.figure(figsize=(12, 6))
+
         plt.plot(
             data_moneda["Fecha venta"],
             data_moneda["PnL acumulado"],
@@ -570,9 +638,7 @@ def crear_graficos(trades_df, resumen_df, carpeta_salida):
         guardar_y_mostrar(carpeta_monedas / f"{moneda}_03_pnl_acumulado.png")
 
 
-# =====================================================
-# EXPORTAR EXCEL
-# =====================================================
+
 
 def exportar_excel(df_limpio, trades_df, abiertas_df, resumen_df, carpeta_salida):
     carpeta = Path(carpeta_salida)
@@ -580,18 +646,104 @@ def exportar_excel(df_limpio, trades_df, abiertas_df, resumen_df, carpeta_salida
 
     archivo_excel = carpeta / "reporte_trading.xlsx"
 
+    # Copias para no modificar los DataFrames originales
+    df_limpio_excel = df_limpio.copy()
+    trades_excel = trades_df.copy()
+    abiertas_excel = abiertas_df.copy()
+    resumen_excel = resumen_df.copy()
+
+    # Ordenar trades cerrados 
+    if not trades_excel.empty:
+        trades_excel = trades_excel.sort_values(
+            ["Moneda", "Fecha venta"],
+            ascending=[True, True]
+        ).reset_index(drop=True)
+
+        # Crear Resultado si no existe
+        col_pnl = f"PnL {MONEDA_COTIZACION}"
+
+        if "Resultado" not in trades_excel.columns and col_pnl in trades_excel.columns:
+            trades_excel["Resultado"] = trades_excel[col_pnl].apply(
+                lambda x: "Ganancia" if x > 0 else "Pérdida" if x < 0 else "Empate"
+            )
+
+         #Trades cerrados
+        columnas_trades_cerrados = [
+            "Moneda",
+            "Fecha compra inicial",
+            "Fecha venta",
+            "Precio compra promedio",
+            "Cantidad vendida",
+            "Precio compra",
+            "Precio venta",
+            f"Costo {MONEDA_COTIZACION}",
+            f"Venta {MONEDA_COTIZACION}",
+            f"PnL {MONEDA_COTIZACION}",
+            "ROI %",
+            "Resultado"
+        ]
+
+        # Dejar solo las columnas que existan realmente
+        columnas_existentes = [
+            columna for columna in columnas_trades_cerrados
+            if columna in trades_excel.columns
+        ]    
+
+        trades_excel = trades_excel[columnas_existentes]
+
+    # Ordenar posiciones abiertas
+    if not abiertas_excel.empty:
+        abiertas_excel = abiertas_excel.sort_values(
+            ["Moneda", "Fecha compra"],
+            ascending=[True, True]
+        ).reset_index(drop=True)
+
+    # Ordenar datos limpios
+    if not df_limpio_excel.empty:
+        df_limpio_excel = df_limpio_excel.sort_values(
+            ["Moneda", "Fecha"],
+            ascending=[True, True]
+        ).reset_index(drop=True)
+
     with pd.ExcelWriter(archivo_excel, engine="openpyxl") as writer:
-        resumen_df.to_excel(writer, sheet_name="Resumen por moneda", index=False)
-        trades_df.to_excel(writer, sheet_name="Trades cerrados", index=False)
-        abiertas_df.to_excel(writer, sheet_name="Posiciones abiertas", index=False)
-        df_limpio.to_excel(writer, sheet_name="Datos limpios", index=False)
+        resumen_excel.to_excel(writer, sheet_name="Resumen por moneda", index=False)
+        trades_excel.to_excel(writer, sheet_name="Trades cerrados", index=False)
+        abiertas_excel.to_excel(writer, sheet_name="Posiciones abiertas", index=False)
+        df_limpio_excel.to_excel(writer, sheet_name="Datos limpios", index=False)
+
+        workbook = writer.book
+
+       
+        formato_fecha = "yyyy-mm-dd hh:mm:ss"
+
+        for sheet_name in workbook.sheetnames:
+            ws = workbook[sheet_name]
+
+            # Congelar encabezado
+            ws.freeze_panes = "A2"
+
+
+            
+            for column_cells in ws.columns:
+                max_length = 0
+                column_letter = column_cells[0].column_letter
+            
+            
+                for cell in column_cells:
+                    valor = cell.value
+                    if valor is not None:
+                        max_length = max(max_length, len(str(valor)))
+
+                    
+                    encabezado = ws.cell(row=1, column=cell.column).value
+
+                    if encabezado is not None and "fecha" in str(encabezado).lower():
+                        cell.number_format = formato_fecha
+
+                ws.column_dimensions[column_letter].width = min(max_length + 2, 25)
 
     return archivo_excel
 
-
-# =====================================================
-# MOSTRAR RESULTADOS
-# =====================================================
 
 def mostrar_resultados(resumen_df, abiertas_df):
     print("\n" + "=" * 60)
@@ -613,9 +765,7 @@ def mostrar_resultados(resumen_df, abiertas_df):
         print(abiertas_df)
 
 
-# =====================================================
-# MAIN
-# =====================================================
+
 
 def main():
     carpeta = Path(CARPETA_SALIDA)
@@ -635,6 +785,9 @@ def main():
 
     print("Creando gráficos...")
     crear_graficos(trades_df, resumen_df, carpeta)
+
+ 
+
 
     print("Exportando Excel...")
     archivo_excel = exportar_excel(
